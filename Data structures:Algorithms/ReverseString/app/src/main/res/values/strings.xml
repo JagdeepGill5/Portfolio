@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">ReverseString</string>
+    <string name="button">Reverse</string>
+    <string name="text_box">Enter a String</string>
+</resources>

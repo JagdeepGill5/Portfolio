@@ -1,0 +1,2 @@
+rootProject.name='StackAPI'
+include ':app'

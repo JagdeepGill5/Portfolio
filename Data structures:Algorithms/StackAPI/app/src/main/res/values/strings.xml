@@ -1,0 +1,8 @@
+<resources>
+    <string name="app_name">Stack</string>
+    <string name="Add_to_stack">Push</string>
+    <string name="Remove_from_stack">Pop</string>
+    <string name="Number_entered">Enter a Number</string>
+    <string name="Stack_title">Stack</string>
+    <string name="clear">Clear</string>
+</resources>

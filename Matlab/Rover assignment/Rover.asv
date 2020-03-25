@@ -1,0 +1,163 @@
+% Simulation of a continuous dynamic system described by ordinary
+% differential equations.
+%
+% INITIAL SEGMENT
+%
+% Define constant model parameters as global variables. Set the initial 
+% conditions of the states and set up the input to the model.
+%
+% It is good practice to clear the MATLAB workspace at the beginning of 
+% a program
+
+clear all
+
+% Define and initialise the model input and any model parameters
+% as global variables so that they can be read in the function model.m.
+
+global Vd L R Kt Ke bs Jm Jw Kc KH KN KS KV KY VT Rw Rm Gc KI siref 
+
+Vd = 2;               % Voltage
+L = 0.1;              % Inductance
+R = 4;                % Resistance 
+Kt = 0.35;            %
+Ke = 0.35;            %
+bs = 0.01;            %
+Jm = 0.002;           %
+Jw = 0.0011;          %
+Kc = 2.2;             %
+KH = 2.2;             %
+KN = 14.14;           %
+KS = 9.81;            %
+KV = 0.466;           %
+KY = 29.94;           %
+VT = 0.75;            %
+Rw = 0.064;           %
+Rm = 0.124;           %
+Gc = 33.3;            %
+KI = 0.65;            %
+siref = 0.785398;     % 
+
+% Define parameters for the simulation
+
+stepsize = 0.01;				% Integration step size
+comminterval = 0.01;			% Communications interval
+EndTime = 5;					% Duration of the simulation (final time)
+i = 0;							% Initialise counter for data storage
+
+% Initial conditions of all states and state derivatives
+
+x = [0,0,0,0,0,0,0,0,-0.174533]';
+xdot = [0,0,0,0,0,0,0,0,0]';
+int = 0;
+
+% END OF INITIAL SEGMENT - all parameters initialised
+%
+% DYNAMIC SEGMENT
+%
+% The DYNAMIC SECTION is the main section of a simulation program. This is
+% evaluated for every time interval during the simulation. Therefore it is 
+% an interative process.
+
+for time = 0:stepsize:EndTime,
+   
+    % store time state and state derivative data every communication interval
+   
+    if rem(time,comminterval)==0
+      
+        i = i+1;					% increment counter 
+        tout(i) = time;	 	        % store time
+        xout(i,:) = x;			    % store states
+        xdout(i,:) = xdot;       	% store state derivatives
+    end						     	% end of storage      
+   
+    % DERIVATIVE SECTION
+	%
+	% The DERIVATIVE SECTION contains the statements needed to evaluate the
+	% state derivatives - these statements define the dynamic model (model.m)
+	
+    int = int + (stepsize*((Kc*siref)-(KH*x(9))));
+    deltav = (Gc*((siref*Kc)-(KH*x(9)))) + (int*Gc*KI); 
+    
+    Vin(1) = Vd - deltav;
+    Vin(2) = Vd + deltav;
+    
+    xdot = state_space_model(x,Vin);
+  
+	% END OF DERIVATIVE SECTION
+	%
+	% INTEG SECTION
+	% 
+    % Numerical integration of the state derivatives for this time interval
+
+    x = rk4int('state_space_model', stepsize, x, Vin);
+ 
+    % END OF INTEG SECTION
+   
+end
+
+% END OF DYNAMIC SEGMENT
+%
+% TERMINAL SEGMENT
+%
+% The TERMINAL SEGMENT contains statements that are executed after the simulation 
+% is complete e.g. plotting results
+
+figure(1)										% define figure window number
+subplot(5,2,1)                                  % select the first subplot
+plot(tout,xout(:,1),'b-')                       % plot state 1 against time
+xlabel('time [s]')                              % label x-axis
+ylabel('Left current')                          % label y-axis
+grid on                                         % turn grid on 
+                                            
+subplot(5,2,4)                                  % select the first subplot
+plot(tout,xout(:,4),'b-')                       % plot state 1 against time
+xlabel('time [s]')                              % label x-axis
+ylabel('Right current')                         % label y-axis
+grid on                                         % turn grid on 
+                                       
+subplot(5,2,2)                                  % select the first subplot
+plot(tout,xout(:,2),'b-')                       % plot state 1 against time
+xlabel('time [s]')                              % label x-axis
+ylabel('Left motor rotation')                   % label y-axis
+grid on                                         % turn grid on 
+
+subplot(5,2,5)                                  % select the first subplot
+plot(tout,xout(:,5),'b-')                       % plot state 1 against time
+xlabel('time [s]')                              % label x-axis
+ylabel('Right motor rotation')                  % label y-axis
+grid on                                         % turn grid on 
+
+subplot(5,2,3)                                  % select the first subplot
+plot(tout,xout(:,3),'b-')                       % plot state 1 against time
+xlabel('time [s]')                              % label x-axis
+ylabel('Left wheel rotation')                   % label y-axis
+grid on                                         % turn grid on 
+
+subplot(5,2,6)                                  % select the first subplot
+plot(tout,xout(:,6),'b-')                       % plot state 1 against time
+xlabel('time [s]')                              % label x-axis
+ylabel('Right wheel rotation')                  % label y-axis
+grid on                                         % turn grid on 
+
+subplot(5,2,8)                                  % select the first subplot
+plot(tout,xout(:,8),'b-')                       % plot state 1 against time
+xlabel('time [s]')                              % label x-axis
+ylabel('Sway velocity')                         % label y-axis
+grid on                                         % turn grid on 
+
+subplot(5,2,7)                                  % select the first subplot
+plot(tout,xout(:,7),'b-')                       % plot state 1 against time
+xlabel('time [s]')                              % label x-axis
+ylabel('Yaw rate')                              % label y-axis
+grid on                                         % turn grid on 
+
+subplot(5,2,9)                                  % select the first subplot
+plot(tout,xout(:,9),'b-')                       % plot state 1 against time
+xlabel('time [s]')                              % label x-axis
+ylabel('Yaw angle')                             % label y-axis
+grid on                                         % turn grid on 
+
+% END OF TERMINAL SECTION
+
+% END OF SIMULATION PROGRAM
+
