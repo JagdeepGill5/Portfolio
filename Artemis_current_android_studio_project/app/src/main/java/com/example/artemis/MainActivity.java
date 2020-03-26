@@ -2,6 +2,8 @@ package com.example.artemis;
 
 import androidx.annotation.RequiresApi;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.constraintlayout.widget.ConstraintLayout;
+import androidx.core.content.ContextCompat;
 import androidx.fragment.app.FragmentManager;
 import android.annotation.SuppressLint;
 import android.app.Activity;
@@ -13,17 +15,24 @@ import android.content.SharedPreferences;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.view.KeyEvent;
 import android.view.View;
+import android.view.WindowManager;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputMethodManager;
+import android.webkit.WebChromeClient;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.widget.Button;
 import android.widget.EditText;
+import android.widget.FrameLayout;
 import android.widget.TextView;
+import android.widget.Toast;
+
 import java.util.ArrayList;
 import java.util.Objects;
 
@@ -38,10 +47,13 @@ public class MainActivity extends AppCompatActivity {
     private TextView hdr;
     private FavDialog favDialog;
     private ArrayList<String> blockedList;
+    private ConstraintLayout constraintLayout; //for background colour
     FavDatabaseHelper favDatabaseHelper;
     HPDatabaseHelper hpDatabaseHelper;
     BlackListDatabaseHelper blackListDatabaseHelper;
     CurrentStateDatabaseHelper currentStateDatabaseHelper;
+    private long backPressedTime;
+    HistoryDBHelper historyDBHelper;
     static final String savedUrl = "url";
     String password;
 
@@ -61,11 +73,22 @@ public class MainActivity extends AppCompatActivity {
         xrossInvisible(null);
         favDatabaseHelper = new FavDatabaseHelper(this);
         hpDatabaseHelper = new HPDatabaseHelper(this);
+        historyDBHelper = new HistoryDBHelper(this);
         currentStateDatabaseHelper = new CurrentStateDatabaseHelper(this);
+        historyDBHelper = new HistoryDBHelper(this);
         viewer.setWebViewClient(new WebViewClient());
+        viewer.setWebChromeClient(new ChromeClient());
         viewer.getSettings().setUseWideViewPort(true);
         viewer.getSettings().setLoadWithOverviewMode(true);
         viewer.getSettings().setJavaScriptEnabled(true);
+        historyDBHelper = new HistoryDBHelper(this);
+        constraintLayout = findViewById(R.id.constraintLayout);
+        //Gets the background theme from SharedPreferences:
+        SharedPreferences sharedPref = getSharedPreferences("bg", Context.MODE_PRIVATE);
+        int savedBg = sharedPref.getInt("bg", R.color.colorBG1);
+        constraintLayout.setBackgroundColor(ContextCompat.getColor(this, savedBg));
+
+
         if (savedInstanceState != null) {
             home = savedInstanceState.getString(savedUrl);
         }
@@ -73,6 +96,7 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public boolean onEditorAction(TextView v, int actionId, KeyEvent event) {
                 if (actionId == EditorInfo.IME_ACTION_GO) {
+
                     filterUrl(addressBar.getText().toString());
                     go(null);
                 }
@@ -88,6 +112,39 @@ public class MainActivity extends AppCompatActivity {
             }
             addressBar.setText(tempUrl);
             go(null);
+        }
+
+    }
+
+    @Override
+    protected void onSaveInstanceState(Bundle outState) {
+        super.onSaveInstanceState(outState);
+        viewer.saveState(outState);
+    }
+
+    @Override
+    protected void onRestoreInstanceState(Bundle savedInstanceState) {
+        super.onRestoreInstanceState(savedInstanceState);
+        viewer.restoreState(savedInstanceState);
+    }
+
+    @Override
+    public void onBackPressed() {
+        if (isFullScreen()) {
+            getWindow().clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
+            getWindow().addFlags(WindowManager.LayoutParams.FLAG_FORCE_NOT_FULLSCREEN);
+        } else {
+            if (viewer.canGoBack()) {
+                gobackPage(null);
+            } else {
+                if (backPressedTime + 2000 > System.currentTimeMillis()) {
+                    super.onBackPressed();
+                } else {
+                    Toast.makeText(getBaseContext(), "Press back again to exit",
+                            Toast.LENGTH_SHORT).show();
+                }
+                backPressedTime = System.currentTimeMillis();
+            }
         }
     }
 
@@ -169,6 +226,7 @@ public class MainActivity extends AppCompatActivity {
     @RequiresApi(api = Build.VERSION_CODES.JELLY_BEAN)
     public void go(final View v) {
         if (v != null) {
+            historyDBHelper.addData(addressBar.getText().toString());
             filterUrl(addressBar.getText().toString());
         }
         viewer.loadUrl(tempUrl);
@@ -441,5 +499,57 @@ public class MainActivity extends AppCompatActivity {
         cursor.close();
         db.close();
         return returnCurrent;
+    }
+
+    private class ChromeClient extends WebChromeClient {
+        private View mCustomView;
+        private WebChromeClient.CustomViewCallback mCustomViewCallback;
+        protected FrameLayout mFullscreenContainer;
+        private int mOriginalOrientation;
+        private int mOriginalSystemUiVisibility;
+
+        ChromeClient() {}
+
+        public Bitmap getDefaultVideoPoster()
+        {
+            if (mCustomView == null) {
+                return null;
+            }
+            return BitmapFactory.decodeResource(getApplicationContext().getResources(), 2130837573);
+        }
+
+        public void onHideCustomView()
+        {
+            ((FrameLayout)getWindow().getDecorView()).removeView(this.mCustomView);
+            this.mCustomView = null;
+            getWindow().getDecorView().setSystemUiVisibility(this.mOriginalSystemUiVisibility);
+            setRequestedOrientation(this.mOriginalOrientation);
+            this.mCustomViewCallback.onCustomViewHidden();
+            this.mCustomViewCallback = null;
+        }
+
+        public void onShowCustomView(View paramView, WebChromeClient.CustomViewCallback paramCustomViewCallback)
+        {
+            if (this.mCustomView != null)
+            {
+                onHideCustomView();
+                return;
+            }
+            this.mCustomView = paramView;
+            this.mOriginalSystemUiVisibility = getWindow().getDecorView().getSystemUiVisibility();
+            this.mOriginalOrientation = getRequestedOrientation();
+            this.mCustomViewCallback = paramCustomViewCallback;
+            ((FrameLayout)getWindow().getDecorView()).addView(this.mCustomView, new FrameLayout.LayoutParams(-1, -1));
+            getWindow().getDecorView().setSystemUiVisibility(3846 | View.SYSTEM_UI_FLAG_LAYOUT_STABLE);
+        }
+    }
+
+    public final boolean isFullScreen() {
+        int flg = getWindow().getAttributes().flags;
+        boolean flag = false;
+        if ((flg & WindowManager.LayoutParams.FLAG_FULLSCREEN) == WindowManager.LayoutParams.FLAG_FULLSCREEN) {
+            flag = true;
+        }
+        return flag;
     }
 }
