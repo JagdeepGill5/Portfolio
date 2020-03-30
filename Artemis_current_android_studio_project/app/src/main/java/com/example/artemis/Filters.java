@@ -1,6 +1,8 @@
 package com.example.artemis;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
 
 import android.content.ContentValues;
 import android.content.Intent;
@@ -12,8 +14,10 @@ import android.os.Bundle;
 import android.view.View;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
+import android.widget.CompoundButton;
 import android.widget.EditText;
 import android.widget.ListView;
+import android.widget.Switch;
 import android.widget.TextView;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
@@ -23,23 +27,26 @@ import java.util.ArrayList;
 import java.util.Arrays;
 
 public class Filters extends AppCompatActivity {
-    public  ArrayList<String> arrayList;
-    private ArrayAdapter<String> adapter;
+    private RecyclerAdapter recyclerAdapter;
     private EditText txtInput;
     private SharedPreferences fav;
-    FilterWordsDBhelper filterWords;
+    private FilterWordsDBhelper filterWords;
+    public ArrayList<String> arrayList;
+    String wordId= null;
+    public boolean status;
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_filters);
+        filterWords = new FilterWordsDBhelper(this);
 
-        ListView listView = (ListView) findViewById(R.id.listview3);
-        String[] items = {"1","2","3"};
-        arrayList = new ArrayList<String>(Arrays.asList(items));
-        retrieveFromFilterDB();
+        RecyclerView recyclerView = findViewById(R.id.recyclerView2);
+        arrayList = new ArrayList<>();
+        arrayList = getFilterWords();
+        recyclerAdapter = new RecyclerAdapter(this, arrayList);
+        recyclerView.setAdapter(recyclerAdapter);
+        recyclerView.setLayoutManager(new LinearLayoutManager(this));
         //constructor of adapter to store input item separately in list_item and put them in list_view
-        adapter = new ArrayAdapter<String>(this,R.layout.list_item,R.id.txtitem,arrayList);
-        listView.setAdapter(adapter);
         Button btnAdd = (Button) findViewById(R.id.button2);
         btnAdd.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -47,22 +54,8 @@ public class Filters extends AppCompatActivity {
                 txtInput = (EditText) findViewById(R.id.editText18);
                 String newItem = txtInput.getText().toString();
                 //every time add an item, add it in the top of stack by adding it to the 0 index of the arrayList
-                arrayList.add(0,newItem);
-                addTofilterDB(newItem);
-                adapter.notifyDataSetChanged();
-            }
-        });
-
-        Button btnPop = (Button) findViewById(R.id.button32);
-        btnPop.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                if(arrayList.size()==0){
-                    return;
-                }
-
-                arrayList.remove(0);
-                adapter.notifyDataSetChanged();
+                addTofilterDB(newItem.toLowerCase());
+                recyclerAdapter.notifyDataSetChanged();
             }
         });
 
@@ -74,35 +67,32 @@ public class Filters extends AppCompatActivity {
     public ArrayList<String> getArrayList(){
         return arrayList;
     }
-
+    public boolean getStatus(){
+        return status;
+    }
     public void addTofilterDB(String word) {
         SQLiteDatabase db = filterWords.getWritableDatabase();
         ContentValues values = new ContentValues();
-
-        for (int i = 0; i < arrayList.size(); i++) {
-            String current = arrayList.get(i);
-            if (!current.equals("")) {
-                values.put("words", current);
-                db.insert("filter_table", null, values);
-            }
-        }
+        values.put("words", word);
+        db.insert("filter_table", null, values);
         db.close();
+        arrayList.add(word);
     }
 
-    public void retrieveFromFilterDB() {
+
+    public ArrayList<String> getFilterWords() {
+        ArrayList<String> arrayList = new ArrayList<>();
         SQLiteDatabase db = filterWords.getReadableDatabase();
         String selectString = "SELECT * FROM filter_table";
         Cursor cursor = db.rawQuery(selectString, null);
-        int i = 0;
         if (cursor.moveToFirst()) {
             do {
                 arrayList.add(cursor.getString(cursor.getColumnIndex("words")));
-                i++;
             } while (cursor.moveToNext());
         }
         cursor.close();
         db.close();
+        return arrayList;
     }
-
 
 }

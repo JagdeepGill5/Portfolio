@@ -22,6 +22,7 @@ import android.graphics.BitmapFactory;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
+import android.view.Gravity;
 import android.view.KeyEvent;
 import android.view.View;
 import android.view.WindowManager;
@@ -87,7 +88,7 @@ public class MainActivity extends AppCompatActivity {
         dialogUrl = "";
         blackListDatabaseHelper = new BlackListDatabaseHelper(this);
         blockedList = new ArrayList<>();
-        getBlockedSites();
+        blockedList = blackListDatabaseHelper.retrieveLinksFromDatabase();
         xrossInvisible(null);
         favDatabaseHelper = new FavDatabaseHelper(this);
         hpDatabaseHelper = new HPDatabaseHelper(this);
@@ -142,8 +143,23 @@ public class MainActivity extends AppCompatActivity {
                 return false;
             }
         });
+        /////////////////////////////
+/*        Bundle getFromFavs = getIntent().getExtras();
+        if (getFromFavs != null) {
+            if (!Objects.equals(getFromFavs.getString(Intent.EXTRA_RETURN_RESULT), "")) {
+                tempUrl = getFromFavs.getString(Intent.EXTRA_RETURN_RESULT);
+            } else {
+                tempUrl = retrieveFromCurrentStateDB();
+            }
+            addressBar.setText(tempUrl);
+            go(null);
+        }*/
         //Check if a favourite was clicked and if so, go to favourite:
         goToFavourite();
+        getBlockedSites();
+        getFilterWords();
+        ProfanityFilter.loadStaticList();
+
     }
 
     @Override
@@ -160,6 +176,7 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     public void onBackPressed() {
+        getFilterWords();
         if (isFullScreen()) {
             getWindow().clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
             getWindow().addFlags(WindowManager.LayoutParams.FLAG_FORCE_NOT_FULLSCREEN);
@@ -196,18 +213,13 @@ public class MainActivity extends AppCompatActivity {
                     public void onDismiss(DialogInterface dialog) {
                         if (favDialog.getResult()) {
                              if (favDialog.isHp()) {
-                             try {
-                             hpDatabaseHelper.rePopulate(dialogUrl);
-                             } catch (Exception e) {
-                             hpDatabaseHelper.addData(dialogUrl);
+                                 addToHPDB(dialogUrl);
                              }
-                             }
-
                              Handler handler1 = new Handler();
                              handler1.postDelayed(new Runnable() {
                             @Override
                             public void run() {
-                                home = hpDatabaseHelper.getHomePage();
+                                home = retreiveFromHPDB();
                             }
                             },200);
 
@@ -245,11 +257,24 @@ public class MainActivity extends AppCompatActivity {
 
     @RequiresApi(api = Build.VERSION_CODES.JELLY_BEAN)
     public void go(final View v) {
+        getBlockedSites();
+        getBlockedSites();
+        String url = addressBar.getText().toString();
         if (v != null) {
-            historyDBHelper.addData(addressBar.getText().toString());
-            filterUrl(addressBar.getText().toString());
+            if (ProfanityFilter.isBadString(url)) {
+
+                int duration = Toast.LENGTH_LONG;
+
+                Toast toast = Toast.makeText(getBaseContext(), "Restricted word searched by the browser. Validate your age", duration);
+                toast.setGravity(Gravity.CENTER | Gravity.CENTER, 0, 0);
+                toast.show();
+                addressBar.setText("");
+                return;
+            }
+            historyDBHelper.addData(url);
+            filterUrl(url);
         }
-        String URLin=addressBar.getText().toString();
+        String URLin= url;
         String text=getTextFromWWW(URLin);
         getFilterWords();
         if(checkPage(text,filterWordsList)){
@@ -290,6 +315,8 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void refresh(View v) {
+        getBlockedSites();
+        getBlockedSites();
         viewer.reload();
         viewer.setWebViewClient(new WebViewClient() {
             @Override
@@ -314,6 +341,8 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void gobackPage(View v) {
+        getBlockedSites();
+        getBlockedSites();
         if (viewer.canGoBack()) {
             viewer.goBack();
             viewer.setWebViewClient(new WebViewClient() {
@@ -340,6 +369,8 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void goForwardPage(View v) {
+        getBlockedSites();
+        getBlockedSites();
         if (viewer.canGoForward()) {
             viewer.goForward();
             viewer.setWebViewClient(new WebViewClient() {
@@ -371,24 +402,14 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void homeP(View v) {
-        String homePage = "";
-        try {
-            homePage = hpDatabaseHelper.getHomePage();
-        } catch (Exception e) {
-
-        }
-        if (homePage.equals("")) {
-            try {
-                SharedPreferences getSavedHP;
-                getSavedHP = getSharedPreferences("SAVED_URL", Context.MODE_PRIVATE);
-                home = getSavedHP.getString("MEM-URL", "");
-            } catch (Exception e) {
-            }
+        getBlockedSites();
+        getBlockedSites();
+        if (retreiveFromHPDB() == null) {
+            tempUrl = "";
         } else {
-            home = homePage;
+            tempUrl = "http://" + filterBlocked(retreiveFromHPDB());
         }
-        viewer.loadUrl(home);
-        addressBar.setText(home);
+        go(null);
         xrossInvisible(null);
         viewer.setWebViewClient(new WebViewClient() {
             @Override
@@ -462,12 +483,12 @@ public class MainActivity extends AppCompatActivity {
 
     public void getBlockedSites() {
         SQLiteDatabase db = blackListDatabaseHelper.getReadableDatabase();
-        String selectString = "SELECT * FROM bl_table";
+        String selectString = "SELECT * FROM bl_table;";
         Cursor cursor = db.rawQuery(selectString, null);
         if (cursor.moveToFirst()) {
             do {
-                blockedList.add(filterBlocked(cursor
-                        .getString(cursor.getColumnIndex("URL"))));
+                blockedList.add(cursor
+                        .getString(cursor.getColumnIndex("Url")));
             } while (cursor.moveToNext());
         }
         cursor.close();
@@ -512,7 +533,7 @@ public class MainActivity extends AppCompatActivity {
     public boolean isBlocked(String s) {
         boolean result = false;
         for (int i = 0; i < blockedList.size(); i++) {
-            if (s.contains(blockedList.get(i))) {
+            if (s.contains(blockedList.get(i)) || blockedList.get(i).contains(s)) {
                 result =  true;
                 break;
             }
@@ -527,6 +548,30 @@ public class MainActivity extends AppCompatActivity {
         values.put("current", s);
         db.insert("current_state", null, values);
         db.close();
+    }
+
+    public void addToHPDB(String s) {
+        SQLiteDatabase db = hpDatabaseHelper.getWritableDatabase();
+        hpDatabaseHelper.clearTable(db);
+        ContentValues values = new ContentValues();
+        values.put("Url", s);
+        db.insert("hp_table", null, values);
+        db.close();
+    }
+
+    public String retreiveFromHPDB() {
+        SQLiteDatabase db = hpDatabaseHelper.getReadableDatabase();
+        String select = "SELECT * FROM hp_table;";
+        String returnHP = "";
+        Cursor cursor = db.rawQuery(select, null);
+        if (cursor.moveToFirst()) {
+            do {
+                returnHP = cursor.getString(cursor.getColumnIndex("Url"));
+            } while (cursor.moveToNext());
+        }
+        cursor.close();
+        db.close();
+        return returnHP;
     }
 
     public String retrieveFromCurrentStateDB() {
@@ -614,6 +659,7 @@ public class MainActivity extends AppCompatActivity {
         filterWordsList=this.filterWordsList;
         for(int i=0;i<filterWordsList.size();i++){
             String a = (String) filterWordsList.get(i);
+            text=text.toLowerCase();
             if(text.contains(a)){
                 return false;
             }
@@ -637,36 +683,8 @@ public class MainActivity extends AppCompatActivity {
             String link = helper.retrieveLinkByTitle(favouriteClicked);
 
             if (link != null) {
-                if (link.startsWith("www")) {
-                    link = "https://" + link;
-                } else if (!link.startsWith("http")) {
-                    link = "https://www." + link;
-                }
-
-                viewer.loadUrl(link);
-                System.out.println(link);
-                addressBar.setText(home);
-                xrossInvisible(null);
-                viewer.setWebViewClient(new WebViewClient() {
-                    @Override
-                    public void onPageStarted(WebView view, String url, Bitmap favicon) {
-                        super.onPageStarted(view, url, favicon);
-                        if (isBlocked(url)) {
-                            viewer.loadUrl("https://i.ibb.co/ZL7FtBd/Webp-net-resizeimage.jpg");
-                        }
-                    }
-
-                    @Override
-                    public void onPageFinished(WebView view1, String url) {
-                        super.onPageFinished(view1, url);
-                        if (!viewer.getUrl().equals("https://i.ibb.co/ZL7FtBd/Webp-net-resizeimage.jpg")) {
-                            hdr.setText(viewer.getTitle());
-                            addressBar.setText(viewer.getUrl());
-                        } else {
-                            hdr.setText(R.string.not_allowed);
-                        }
-                    }
-                });
+                tempUrl = link;
+                go(null);
             }
         }
     }
