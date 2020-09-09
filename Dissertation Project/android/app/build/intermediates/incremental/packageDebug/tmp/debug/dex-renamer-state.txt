@@ -1,0 +1,4 @@
+#Tue Jul 21 11:28:36 BST 2020
+base.0=C\:\\Users\\GILL\\Desktop\\DissertationProject\\android\\app\\build\\intermediates\\dex\\debug\\mergeDexDebug\\out\\classes.dex
+path.0=classes.dex
+renamed.0=classes.dex

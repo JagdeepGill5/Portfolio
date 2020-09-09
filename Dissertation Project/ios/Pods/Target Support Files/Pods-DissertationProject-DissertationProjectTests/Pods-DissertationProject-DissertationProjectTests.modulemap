@@ -1,0 +1,6 @@
+module Pods_DissertationProject_DissertationProjectTests {
+  umbrella header "Pods-DissertationProject-DissertationProjectTests-umbrella.h"
+
+  export *
+  module * { export * }
+}
